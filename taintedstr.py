@@ -36,6 +36,19 @@ class Instr:
         else:
             return '?'
 
+    def opS(self):
+        if not self.opA.has_taint() and type(self.opB) is tstr:
+            return (self.opB, self.opA)
+        else:
+            return (self.opA, self.opB)
+
+    @property
+    def op_A(self): return self.opS()[0]
+
+    @property
+    def op_B(self): return self.opS()[1]
+
+
     def __repr__(self):
         return "%s,%s,%s" % (self.o(), repr(self.opA), repr(self.opB))
 
@@ -94,6 +107,13 @@ class tstr(str):
             self._taint = taint
         else:
             self._taint = list(range(0, len(self)))
+
+    def untaint(self):
+        self._taint =  [-1] * len(self)
+        return self
+
+    def has_taint(self):
+        return any(True for i in self._taint if i >= 0)
 
     def __repr__(self):
         return str.__repr__(self) # + ':' + str((self._idx, self._unmapped_till))
