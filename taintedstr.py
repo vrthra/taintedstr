@@ -150,6 +150,7 @@ class tstr(str):
         if self._taint:
             return self._taint[i]
         else:
+            if i != 0: raise Exception('Invalid request idx')
             # self._t gets created only for empty strings.
             # use the exception to determine which ones need it.
             return self._t
@@ -225,9 +226,9 @@ class tstr(str):
                         if key_stop < len(self):
                             t._t = self._taint[key_stop]
                         else:
-                            t._t = len(self)
+                            t._t = self.x() + len(self) # VERIFY
                     else:
-                        t._t = len(self)
+                        t._t = self.x() + len(self)
                 return t
 
         elif type(key) == int:
