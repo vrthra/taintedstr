@@ -22,6 +22,9 @@ COMPARE_OPERATORS = {
         Op.FIND_STR: lambda x, y: x.find(y)
         }
 
+class TaintException(Exception):
+    pass
+
 class Instr:
     def __init__(self,o, a, b):
         self.opA = a
@@ -124,7 +127,7 @@ class tstr(str):
     def x(self, i=0):
         v = self._x(i)
         if v < 0:
-            raise Exception('Invalid mapped char idx in tstr')
+            raise TaintException('Invalid mapped char idx in tstr')
         return v
 
     def _x(self, i=0):
@@ -150,10 +153,10 @@ class tstr(str):
         if self._taint:
             return self._taint[i]
         else:
-            if i != 0: raise Exception('Invalid request idx')
-            # self._t gets created only for empty strings.
+            if i != 0: raise TaintException('Invalid request idx')
+            # self._tcursor gets created only for empty strings.
             # use the exception to determine which ones need it.
-            return self._t
+            return self._tcursor
 
     # returns the index of the character this substring maps to
     # e.g. "start" is the original string, "art" is the current string, then
@@ -210,6 +213,11 @@ class tstr(str):
         4
         >>> s.x(3)
         7
+        >>> s = my_str[0:-1]
+        >>> len(s)
+        11
+        >>> s.x(10)
+        14
         """
         res = super().__getitem__(key)
         if type(key) == slice:
@@ -220,15 +228,32 @@ class tstr(str):
                 key_start = 0 if key.start is None else key.start
                 key_stop = len(res) if key.stop is None else key.stop
                 if not len(t):
+                    # the string to be returned is an empty string. For
+                    # detecting EOF comparisons, we still need to carry
+                    # the cursor. The main idea is the cursor indicates
+                    # the taint of the character in front of it.
                     # is range start in str?
                     if key_start < len(self):
                         #is range end in str?
                         if key_stop < len(self):
-                            t._t = self._taint[key_stop]
+                            # The only correct value for cursor.
+                            t._tcursor = self._taint[key_stop]
                         else:
-                            t._t = self.x() + len(self) # VERIFY
+                            # keystart was within the string but keystop was
+                            # not in an empty string -- something is wrong
+                            raise TaintException('Odd empty string')
                     else:
-                        t._t = self.x() + len(self)
+                        # Key start was not in the string. We can reply only
+                        # if the key start was just outside the string, in
+                        # which case, we guess.
+                        if len(self) == 0:
+                            t._tcursor = self.x()
+                        else:
+                            if key_start == len(self):
+                                t._tcursor = self._taint[len(self)-1] + 1 #
+                            else:
+                                # consider if we want to untaint instead
+                                raise TaintException('Can not guess taint')
                 return t
 
         elif type(key) == int:
@@ -654,7 +679,7 @@ def make_str_wrapper(fun):
             elif fun.__name__ == 'encode':
                 return tstr(res, idx=0)
             else:
-                raise Exception('%s Not implemented in TSTR' % fun.__name__)
+                raise TaintException('%s Not implemented in TSTR' % fun.__name__)
         return res
     return proxy
 
