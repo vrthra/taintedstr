@@ -581,13 +581,29 @@ class tstr(str):
 
     def __eq__(self, other):
         global Comparisons
-        Comparisons.append(Instr(Op.EQ, self, other))
-        return super().__eq__(other)
+        if len(self) == 0 and len(other) == 0:
+            Comparisons.append(Instr(Op.EQ, self, other))
+            return True
+        elif len(self) == 0:
+            Comparisons.append(Instr(Op.EQ, self, other))
+            return False
+        elif len(other) == 0:
+            Comparisons.append(Instr(Op.EQ, self, other))
+            return False
+        elif len(self) == 1 and len(other) == 1:
+            Comparisons.append(Instr(Op.EQ, self, other))
+            return super().__eq__(other)
+        else:
+            if not self[0] == other[0]: return False
+            return self[1:] == other[1:]
 
     def __ne__(self, other):
-        global Comparisons
-        Comparisons.append(Instr(Op.NE, self, other))
-        return super().__ne__(other)
+        if len(self._taint) == 1 and len(other) == 1:
+            global Comparisons
+            Comparisons.append(Instr(Op.NE, self, other))
+            return super().__ne__(other)
+        else:
+            return not self.__eq__(other)
 
     def __contains__(self, other):
         global Comparisons
