@@ -585,10 +585,10 @@ class tstr(str):
             Comparisons.append(Instr(Op.EQ, self, other))
             return True
         elif len(self) == 0:
-            Comparisons.append(Instr(Op.EQ, self, other))
+            Comparisons.append(Instr(Op.EQ, self, other[0]))
             return False
         elif len(other) == 0:
-            Comparisons.append(Instr(Op.EQ, self, other))
+            Comparisons.append(Instr(Op.EQ, self[0], other))
             return False
         elif len(self) == 1 and len(other) == 1:
             Comparisons.append(Instr(Op.EQ, self, other))
