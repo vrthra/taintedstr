@@ -93,6 +93,9 @@ class tstr_iterator():
         self._str_idx += 1
         return c
 
+def substrings(s, l):
+    for i in range(len(s)-1):
+        yield s[i:i+l]
 
 class tstr(str):
     def __new__(cls, value, *args, **kw):
@@ -117,6 +120,12 @@ class tstr(str):
 
     def has_taint(self):
         return any(True for i in self._taint if i >= 0)
+
+    def in_(self, s):
+        # c in '0123456789'
+        # to
+        # c.in_('0123456789')
+        return any(self == c for c in substrings(s, len(self)))
 
     def __repr__(self):
         return str.__repr__(self) # + ':' + str((self._idx, self._unmapped_till))
