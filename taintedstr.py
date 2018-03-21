@@ -94,7 +94,7 @@ class tstr_iterator():
         return c
 
 def substrings(s, l):
-    for i in range(len(s)-1):
+    for i in range(len(s)-(l-1)):
         yield s[i:i+l]
 
 class tstr(str):
