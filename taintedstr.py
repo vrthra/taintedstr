@@ -125,7 +125,9 @@ class tstr(str):
         # c in '0123456789'
         # to
         # c.in_('0123456789')
-        return any(self == c for c in substrings(s, len(self)))
+        # ensure that all characters are compared
+        result = [self == c for c in substrings(s, len(self))]
+        return any(result)
 
     def __repr__(self):
         return str.__repr__(self) # + ':' + str((self._idx, self._unmapped_till))
