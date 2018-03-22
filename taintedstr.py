@@ -12,14 +12,12 @@ class Op(enum.Enum):
     NOT_IN = enum.auto()
     IS = enum.auto()
     IS_NOT = enum.auto()
-    FIND_STR = enum.auto()
 
 COMPARE_OPERATORS = {
         Op.EQ: lambda x, y: x == y,
         Op.NE: lambda x, y: x != y,
         Op.IN: lambda x, y: x in y,
         Op.NOT_IN: lambda x, y: x not in y,
-        Op.FIND_STR: lambda x, y: x.find(y)
         }
 
 class TaintException(Exception):
@@ -80,6 +78,8 @@ class Instr:
             assert False
 
 Comparisons = []
+Ins = 0
+IComparisons = []
 class tstr_iterator():
     def __init__(self, tstr):
         self._tstr = tstr
@@ -95,7 +95,7 @@ class tstr_iterator():
 
 def substrings(s, l):
     for i in range(len(s)-(l-1)):
-        yield s[i:i+l]
+        yield (i, s[i:i+l])
 
 class tstr(str):
     def __new__(cls, value, *args, **kw):
@@ -122,11 +122,16 @@ class tstr(str):
         return any(True for i in self._taint if i >= 0)
 
     def in_(self, s):
+        global Ins
+        Ins += 1
+        return self.__in_(s)
+
+    def __in_(self, s):
         # c in '0123456789'
         # to
         # c.in_('0123456789')
         # ensure that all characters are compared
-        result = [self == c for c in substrings(s, len(self))]
+        result = [self.__eq(c) for i,c in substrings(s, len(self))]
         return any(result)
 
     def __repr__(self):
@@ -275,6 +280,7 @@ class tstr(str):
             assert False
 
     def rsplit(self, sep = None, maxsplit = -1):
+        # TODO: Need Comparisons
         """
         >>> my_str = tstr('ab cdef ghij kl', taint=list(range(0,15)))
         >>> ab, cdef, ghij, kl = my_str.rsplit(sep=' ')
@@ -310,6 +316,7 @@ class tstr(str):
         return result_list
 
     def split(self, sep = None, maxsplit = -1):
+        # TODO: Need Comparisons
         """
         >>> my_str = tstr('ab cdef ghij kl', taint=list(range(0,15)))
         >>> ab, cdef, ghij, kl = my_str.split(sep=' ')
@@ -415,6 +422,7 @@ class tstr(str):
         return super().__rmod__(other)
 
     def strip(self, cl=None):
+        # TODO: Need Comparisons
         """
         >>> my_str1 = tstr("  abc  ")
         >>> my_str1[2]
@@ -432,6 +440,7 @@ class tstr(str):
         return self.lstrip(cl).rstrip(cl)
 
     def lstrip(self, cl=None):
+        # TODO: Need Comparisons
         """
         >>> my_str1 = tstr("  abc  ")
         >>> my_str1[2]
@@ -449,6 +458,7 @@ class tstr(str):
         return self[i:]
 
     def rstrip(self, cl=None):
+        # TODO: Need Comparisons
         """
         >>> my_str1 = tstr("  abc  ")
         >>> my_str1[2]
@@ -465,6 +475,7 @@ class tstr(str):
         return self[0:len(res)]
 
     def swapcase(self):
+        # TODO: Need Comparisons
         """
         >>> my_str1 = tstr("abc")
         >>> v = my_str1.swapcase()
@@ -528,6 +539,7 @@ class tstr(str):
         return tstr_iterator(self)
 
     def expandtabs(self, n=8):
+        # TODO: Need Comparisons
         """
         >>> my_str = tstr("ab\\tcd")
         >>> len(my_str)
@@ -549,10 +561,12 @@ class tstr(str):
         return tstr(res, all_parts, self)
 
     def partition(self, sep):
+        # TODO: Need Comparisons
         partA, sep, partB = super().partition(sep)
         return (tstr(partA, self._taint[0:len(partA)], self), tstr(sep, self._taint[len(partA): len(partA) + len(sep)], self), tstr(partB, self._taint[len(partA) + len(sep):], self))
 
     def rpartition(self, sep):
+        # TODO: Need Comparisons
         partA, sep, partB = super().rpartition(sep)
         return (tstr(partA, self._taint[0:len(partA)], self), tstr(sep, self._taint[len(partA): len(partA) + len(sep)], self), tstr(partB, self._taint[len(partA) + len(sep):], self))
 
@@ -594,37 +608,72 @@ class tstr(str):
         return res
 
     def __eq__(self, other):
+        global Ins
+        Ins += 1
+        return self.__eq(other)
+
+    def __eq(self, other):
         global Comparisons
         if len(self) == 0 and len(other) == 0:
             Comparisons.append(Instr(Op.EQ, self, other))
+            IComparisons.append(Ins)
             return True
         elif len(self) == 0:
             Comparisons.append(Instr(Op.EQ, self, other[0]))
+            IComparisons.append(Ins)
             return False
         elif len(other) == 0:
             Comparisons.append(Instr(Op.EQ, self[0], other))
+            IComparisons.append(Ins)
             return False
         elif len(self) == 1 and len(other) == 1:
             Comparisons.append(Instr(Op.EQ, self, other))
+            IComparisons.append(Ins)
             return super().__eq__(other)
         else:
-            if not self[0] == other[0]: return False
-            return self[1:] == other[1:]
+            if not self[0].__eq(other[0]): return False
+            return self[1:].__eq(other[1:])
 
     def __ne__(self, other):
-        if len(self._taint) == 1 and len(other) == 1:
-            global Comparisons
+        global Ins
+        Ins += 1
+        return self.__ne(other)
+
+    def __ne(self, other):
+        global Comparisons
+        if len(self) == 0 and len(other) == 0:
             Comparisons.append(Instr(Op.NE, self, other))
+            IComparisons.append(Ins)
+            return False
+        elif len(self) == 0:
+            Comparisons.append(Instr(Op.NE, self, other[0]))
+            IComparisons.append(Ins)
+            return True
+        elif len(other) == 0:
+            Comparisons.append(Instr(Op.NE, self[0], other))
+            IComparisons.append(Ins)
+            return True
+        elif len(self) == 1 and len(other) == 1:
+            Comparisons.append(Instr(Op.NE, self, other))
+            IComparisons.append(Ins)
             return super().__ne__(other)
         else:
-            return not self.__eq__(other)
+            if not self[0].__ne(other[0]): return False
+            return self[1:].__ne(other[1:])
 
     def __contains__(self, other):
+        global Ins
+        Ins += 1
+        return self.__contains(other)
+
+    def __contains(self, other):
         global Comparisons
-        Comparisons.append(Instr(Op.IN, self, other))
-        return super().__contains__(other)
+        for i,s in substrings(self, len(other)):
+            if s.__eq(other): return True
+        return False
 
     def replace(self, a, b, n=None):
+        # TODO: Need Comparisons
         """
         >>> my_str = tstr("aa cde aa")
         >>> res = my_str.replace('aa', 'bb')
@@ -649,36 +698,49 @@ class tstr(str):
         return tstr(mystr, old_taint, self)
 
     def count(self, sub, start=0, end=None):
+        # TODO: Need Comparisons
         return super().count(start, end)
 
     def startswith(self, prefix, start=0, end=None):
+        # TODO: Need Comparisons
         return super().startswith(prefix ,start, end)
 
     def endswith(self, suffix, start=0, end=None):
+        # TODO: Need Comparisons
         return super().endswith(suffix ,start, end)
 
     # returns int
     def find(self, sub, start=None, end=None):
+        global Ins
+        Ins += 1
+        return self.__find(sub, start, end)
+
+    def __find(self, sub, start=None, end=None):
         global Comparisons
-        if start == None:
-            start_val = 0
-        if end == None:
-            end_val = len(self)
-        Comparisons.append(Instr(Op.IN, self[start_val:end_val], sub))
-        return super().find(sub, start, end)
+        if start == None: start_val = 0
+        if end == None: end_val = len(self)
+        substr = self[start_val:end_val]
+
+        result = next((i for i,c in substrings(substr, len(sub)) if c.__eq(sub)), None)
+        if not result: return -1
+        return result
 
     # returns int
     def index(self, sub, start=None, end=None):
+        # TODO: Need Comparisons
         return super().index(sub, start, end)
 
     # returns int
     def rfind(self, sub, start=None, end=None):
+        # TODO: Need Comparisons
         return super().rfind(sub, start, end)
 
     # returns int
     def rindex(self, sub, start=None, end=None):
+        # TODO: Need Comparisons
         return super().rindex(sub, start, end)
 
+    # TODO: Need Comparisons
     def isalnum(self): return super().isalnum()
     def isalpha(self): return super().isalpha()
     def isdigit(self): return super().isdigit()
@@ -691,8 +753,6 @@ class tstr(str):
     def isnumeric(self): return super().isnumeric()
     def isprintable(self): return super().isprintable()
 
-
-# import pudb; brk = pudb.set_trace
 def make_str_wrapper(fun):
     def proxy(*args, **kwargs):
         res = fun(*args, **kwargs)
