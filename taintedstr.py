@@ -717,9 +717,9 @@ class tstr(str):
 
     def __find(self, sub, start=None, end=None):
         global Comparisons
-        if start == None: start_val = 0
-        if end == None: end_val = len(self)
-        substr = self[start_val:end_val]
+        if start == None: start = 0
+        if end == None: end = len(self)
+        substr = self[start:end]
 
         result = next((i for i,c in substrings(substr, len(sub)) if c.__eq(sub)), None)
         if not result: return -1
