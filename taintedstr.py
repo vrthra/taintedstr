@@ -329,6 +329,8 @@ class tstr(str):
         splitted = super().split(sep, maxsplit)
         if not sep: return self._split_space(splitted)
 
+        Comparisons.append(Instr(Op.IN, self, sep))
+
         result_list = []
         last_idx = 0
         first_idx = 0
@@ -343,6 +345,7 @@ class tstr(str):
         return result_list
 
     def _split_space(self, splitted):
+        Comparisons.append(Instr(Op.IN, self, " "))
         result_list = []
         last_idx = 0
         first_idx = 0
@@ -655,7 +658,11 @@ class tstr(str):
     # returns int
     def find(self, sub, start=None, end=None):
         global Comparisons
-        Comparisons.append(Instr(Op.FIND_STR, self, sub))
+        if start == None:
+            start_val = 0
+        if end == None:
+            end_val = len(self)
+        Comparisons.append(Instr(Op.IN, self[start_val:end_val], sub))
         return super().find(sub, start, end)
 
     # returns int
