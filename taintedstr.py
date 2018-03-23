@@ -1,6 +1,9 @@
 import inspect
 import enum
 
+import os
+Python_Specific = (os.getenv('PYTHON_OPT') or 'false') in ['true', '1']
+
 class Op(enum.Enum):
     LT = 0
     LE = enum.auto()
@@ -335,6 +338,7 @@ class tstr(str):
         >>> kl.x()
         18
         """
+        global Comparisons
         splitted = super().split(sep, maxsplit)
         if not sep: return self._split_space(splitted)
 
@@ -354,6 +358,7 @@ class tstr(str):
         return result_list
 
     def _split_space(self, splitted):
+        global Comparisons
         Comparisons.append(Instr(Op.IN, self, " "))
         result_list = []
         last_idx = 0
@@ -614,6 +619,10 @@ class tstr(str):
 
     def __eq(self, other):
         global Comparisons
+        if Python_Specific:
+            Comparisons.append(Instr(Op.EQ, self, other))
+            return super().__eq__(other)
+
         if len(self) == 0 and len(other) == 0:
             Comparisons.append(Instr(Op.EQ, self, other))
             IComparisons.append(Ins)
@@ -641,6 +650,10 @@ class tstr(str):
 
     def __ne(self, other):
         global Comparisons
+        if Python_Specific:
+            Comparisons.append(Instr(Op.NE, self, other))
+            return super().__ne__(other)
+
         if len(self) == 0 and len(other) == 0:
             Comparisons.append(Instr(Op.NE, self, other))
             IComparisons.append(Ins)
