@@ -343,6 +343,7 @@ class tstr(str):
         if not sep: return self._split_space(splitted)
 
         Comparisons.append(Instr(Op.IN, self, sep))
+        IComparisons.append(Ins)
 
         result_list = []
         last_idx = 0
@@ -360,6 +361,7 @@ class tstr(str):
     def _split_space(self, splitted):
         global Comparisons
         Comparisons.append(Instr(Op.IN, self, " "))
+        IComparisons.append(Ins)
         result_list = []
         last_idx = 0
         first_idx = 0
@@ -621,6 +623,7 @@ class tstr(str):
         global Comparisons
         if Python_Specific:
             Comparisons.append(Instr(Op.EQ, self, other))
+            IComparisons.append(Ins)
             return super().__eq__(other)
 
         if len(self) == 0 and len(other) == 0:
@@ -652,6 +655,7 @@ class tstr(str):
         global Comparisons
         if Python_Specific:
             Comparisons.append(Instr(Op.NE, self, other))
+            IComparisons.append(Ins)
             return super().__ne__(other)
 
         if len(self) == 0 and len(other) == 0:
@@ -680,7 +684,6 @@ class tstr(str):
         return self.__contains(other)
 
     def __contains(self, other):
-        global Comparisons
         for i,s in substrings(self, len(other)):
             if s.__eq(other): return True
         return False
@@ -729,7 +732,6 @@ class tstr(str):
         return self.__find(sub, start, end)
 
     def __find(self, sub, start=None, end=None):
-        global Comparisons
         if start == None: start = 0
         if end == None: end = len(self)
         substr = self[start:end]
@@ -808,3 +810,22 @@ def get_t(v):
     if type(v) is tstr: return v
     if hasattr(v, '__dict__') and '_tstr' in v.__dict__: return get_t(v._tstr)
     return None
+
+if __name__ in ['__main__']:
+    my_str = tstr('ab cd')
+    print("Taint information: for %s" % my_str)
+    print(my_str._taint)
+    values = my_str.split()
+    print("After split:")
+    print(values[1]._taint)
+    new = 'hello' + values[1]
+    print("Values after appending hello to front:")
+    print(new._taint)
+    print('Comparisons:')
+    new[5] == 'A'
+    my_str[0] == 'h'
+    my_str[0] == 'a'
+    for i in Comparisons:
+        print(i)
+    for i in Comparisons:
+        print(i.op_A._taint, i)
