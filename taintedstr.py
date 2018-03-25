@@ -338,12 +338,12 @@ class tstr(str):
         >>> kl.x()
         18
         """
-        global Comparisons
+        #global Comparisons
         splitted = super().split(sep, maxsplit)
         if not sep: return self._split_space(splitted)
 
-        Comparisons.append(Instr(Op.IN, self, sep))
-        IComparisons.append(Ins)
+        #Comparisons.append(Instr(Op.IN, self, sep))
+        #IComparisons.append(Ins)
 
         result_list = []
         last_idx = 0
@@ -359,9 +359,9 @@ class tstr(str):
         return result_list
 
     def _split_space(self, splitted):
-        global Comparisons
-        Comparisons.append(Instr(Op.IN, self, " "))
-        IComparisons.append(Ins)
+        #global Comparisons
+        #Comparisons.append(Instr(Op.IN, self, " "))
+        #IComparisons.append(Ins)
         result_list = []
         last_idx = 0
         first_idx = 0
@@ -657,26 +657,7 @@ class tstr(str):
             Comparisons.append(Instr(Op.NE, self, other))
             IComparisons.append(Ins)
             return super().__ne__(other)
-
-        if len(self) == 0 and len(other) == 0:
-            Comparisons.append(Instr(Op.NE, self, other))
-            IComparisons.append(Ins)
-            return False
-        elif len(self) == 0:
-            Comparisons.append(Instr(Op.NE, self, other[0]))
-            IComparisons.append(Ins)
-            return True
-        elif len(other) == 0:
-            Comparisons.append(Instr(Op.NE, self[0], other))
-            IComparisons.append(Ins)
-            return True
-        elif len(self) == 1 and len(other) == 1:
-            Comparisons.append(Instr(Op.NE, self, other))
-            IComparisons.append(Ins)
-            return super().__ne__(other)
-        else:
-            if not self[0].__ne(other[0]): return False
-            return self[1:].__ne(other[1:])
+        return not self.__eq(other)
 
     def __contains__(self, other):
         global Ins
