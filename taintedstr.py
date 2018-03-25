@@ -83,6 +83,15 @@ class Instr:
 Comparisons = []
 Ins = 0
 IComparisons = []
+
+def reset_comparisons():
+    global Comparisons
+    global IComparisons
+    global Ins
+    Comparisons.clear()
+    IComparisons.clear()
+    Ins = 0
+
 class tstr_iterator():
     def __init__(self, tstr):
         self._tstr = tstr
