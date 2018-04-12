@@ -2,7 +2,7 @@ import inspect
 import enum
 
 import os
-Python_Specific = (os.getenv('PYTHON_OPT') or 'false') in ['true', '1']
+Python_Specific = (os.getenv('PY_OPT') or 'false') in ['true', '1']
 
 class Op(enum.Enum):
     LT = 0
