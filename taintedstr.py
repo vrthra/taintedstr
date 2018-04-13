@@ -24,7 +24,8 @@ class Instr:
     def __init__(self,o, a, b, r):
         self.opA = a
         self.opB = b
-        self.op = o
+        self.op = id(o)
+        self.op_name = o
         self.r = r
 
     def o(self):
