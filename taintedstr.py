@@ -21,10 +21,11 @@ class TaintException(Exception):
     pass
 
 class Instr:
-    def __init__(self,o, a, b):
+    def __init__(self,o, a, b, r):
         self.opA = a
         self.opB = b
         self.op = o
+        self.r = r
 
     def o(self):
         if self.op == Op.EQ:
@@ -208,8 +209,9 @@ class tstr(str):
         [in_,'78','0123456789']
         """
 
-        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, s))
-        return self.__in_(s)
+        r = self.__in_(s)
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, s, r))
+        return r
 
     def __in_(self, s):
         # c in '0123456789'
@@ -303,22 +305,25 @@ class tstr(str):
         >>> kl.x()
         18
         """
-        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, sep))
         splitted = super().rsplit(sep, maxsplit)
-        if not sep: return self._split_space(splitted)
+        if not sep:
+            r = self._split_space(splitted)
+        else:
 
-        result_list = []
-        last_idx = 0
-        first_idx = 0
-        sep_len = len(sep)
+            result_list = []
+            last_idx = 0
+            first_idx = 0
+            sep_len = len(sep)
 
-        for s in splitted:
-            last_idx = first_idx + len(s)
-            item = self[first_idx:last_idx]
-            result_list.append(item)
-            # reset the first_idx
-            first_idx = last_idx + sep_len
-        return result_list
+            for s in splitted:
+                last_idx = first_idx + len(s)
+                item = self[first_idx:last_idx]
+                result_list.append(item)
+                # reset the first_idx
+                first_idx = last_idx + sep_len
+            r = result_list
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, sep, r))
+        return r
 
     def split(self, sep = None, maxsplit = -1):
         # TODO: Need Comparisons
@@ -340,22 +345,24 @@ class tstr(str):
         >>> kl.x()
         18
         """
-        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, sep))
         splitted = super().split(sep, maxsplit)
-        if not sep: return self._split_space(splitted)
+        if not sep:
+            r = self._split_space(splitted)
+        else:
+            result_list = []
+            last_idx = 0
+            first_idx = 0
+            sep_len = len(sep)
 
-        result_list = []
-        last_idx = 0
-        first_idx = 0
-        sep_len = len(sep)
-
-        for s in splitted:
-            last_idx = first_idx + len(s)
-            item = self[first_idx:last_idx]
-            result_list.append(item)
-            # reset the first_idx
-            first_idx = last_idx + sep_len
-        return result_list
+            for s in splitted:
+                last_idx = first_idx + len(s)
+                item = self[first_idx:last_idx]
+                result_list.append(item)
+                # reset the first_idx
+                first_idx = last_idx + sep_len
+            r = result_list
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, sep, r))
+        return r
 
     def _split_space(self, splitted):
         result_list = []
@@ -611,22 +618,25 @@ class tstr(str):
         return res
 
     def __eq__(self, other):
-        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, other))
-        return self.__eq(other)
+        r = self.__eq(other)
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, other, r))
+        return r
 
     def __eq(self, other):
         return super().__eq__(other)
 
     def __ne__(self, other):
-        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, other))
-        return self.__ne(other)
+        r = self.__ne(other)
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, other, r))
+        return r
 
     def __ne(self, other):
         return super().__ne__(other)
 
     def __contains__(self, other):
-        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, other))
-        return self.__contains(other)
+        r = self.__contains(other)
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, other, r))
+        return r
 
     def __contains(self, other):
         for i,s in substrings(self, len(other)):
@@ -672,8 +682,9 @@ class tstr(str):
 
     # returns int
     def find(self, sub, start=None, end=None):
-        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, (sub, start, end)))
-        return self.__find(sub, start, end)
+        r = self.__find(sub, start, end)
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, (sub, start, end), r))
+        return r
 
     def __find(self, sub, start=None, end=None):
         if start == None: start = 0
