@@ -1,9 +1,6 @@
 import inspect
 import enum
 
-import os
-Python_Specific = (os.getenv('PYTHON_OPT') or 'false') in ['true', '1']
-
 class Op(enum.Enum):
     LT = 0
     LE = enum.auto()
@@ -12,16 +9,11 @@ class Op(enum.Enum):
     GT = enum.auto()
     GE = enum.auto()
     IN = enum.auto()
+    CONTAINS = enum.auto()
+    FIND = enum.auto()
     NOT_IN = enum.auto()
     IS = enum.auto()
     IS_NOT = enum.auto()
-
-COMPARE_OPERATORS = {
-        Op.EQ: lambda x, y: x == y,
-        Op.NE: lambda x, y: x != y,
-        Op.IN: lambda x, y: x in y,
-        Op.NOT_IN: lambda x, y: x not in y,
-        }
 
 class TaintException(Exception):
     pass
@@ -80,9 +72,6 @@ class Instr:
         else:
             assert False
 
-Comparisons = []
-Ins = 0
-IComparisons = []
 class tstr_iterator():
     def __init__(self, tstr):
         self._tstr = tstr
@@ -116,6 +105,7 @@ class tstr(str):
             self._taint = taint
         else:
             self._taint = list(range(0, len(self)))
+        self.comparisons = parent.comparisons if parent else []
 
     def untaint(self):
         self._taint =  [-1] * len(self)
@@ -125,8 +115,7 @@ class tstr(str):
         return any(True for i in self._taint if i >= 0)
 
     def in_(self, s):
-        global Ins
-        Ins += 1
+        self.comparisons.append(Instr(Op.IN, self, s))
         return self.__in_(s)
 
     def __in_(self, s):
@@ -338,12 +327,10 @@ class tstr(str):
         >>> kl.x()
         18
         """
-        global Comparisons
         splitted = super().split(sep, maxsplit)
         if not sep: return self._split_space(splitted)
 
-        Comparisons.append(Instr(Op.IN, self, sep))
-        IComparisons.append(Ins)
+        self.comparisons.append(Instr(Op.IN, self, sep))
 
         result_list = []
         last_idx = 0
@@ -359,9 +346,7 @@ class tstr(str):
         return result_list
 
     def _split_space(self, splitted):
-        global Comparisons
-        Comparisons.append(Instr(Op.IN, self, " "))
-        IComparisons.append(Ins)
+        self.comparisons.append(Instr(Op.IN, self, " "))
         result_list = []
         last_idx = 0
         first_idx = 0
@@ -615,72 +600,21 @@ class tstr(str):
         return res
 
     def __eq__(self, other):
-        global Ins
-        Ins += 1
+        self.comparisons.append(Instr(Op.EQ, self, other))
         return self.__eq(other)
 
     def __eq(self, other):
-        global Comparisons
-        if Python_Specific:
-            Comparisons.append(Instr(Op.EQ, self, other))
-            IComparisons.append(Ins)
-            return super().__eq__(other)
-
-        if len(self) == 0 and len(other) == 0:
-            Comparisons.append(Instr(Op.EQ, self, other))
-            IComparisons.append(Ins)
-            return True
-        elif len(self) == 0:
-            Comparisons.append(Instr(Op.EQ, self, other[0]))
-            IComparisons.append(Ins)
-            return False
-        elif len(other) == 0:
-            Comparisons.append(Instr(Op.EQ, self[0], other))
-            IComparisons.append(Ins)
-            return False
-        elif len(self) == 1 and len(other) == 1:
-            Comparisons.append(Instr(Op.EQ, self, other))
-            IComparisons.append(Ins)
-            return super().__eq__(other)
-        else:
-            if not self[0].__eq(other[0]): return False
-            return self[1:].__eq(other[1:])
+        return super().__eq__(other)
 
     def __ne__(self, other):
-        global Ins
-        Ins += 1
+        self.comparisons.append(Instr(Op.NE, self, other))
         return self.__ne(other)
 
     def __ne(self, other):
-        global Comparisons
-        if Python_Specific:
-            Comparisons.append(Instr(Op.NE, self, other))
-            IComparisons.append(Ins)
-            return super().__ne__(other)
-
-        if len(self) == 0 and len(other) == 0:
-            Comparisons.append(Instr(Op.NE, self, other))
-            IComparisons.append(Ins)
-            return False
-        elif len(self) == 0:
-            Comparisons.append(Instr(Op.NE, self, other[0]))
-            IComparisons.append(Ins)
-            return True
-        elif len(other) == 0:
-            Comparisons.append(Instr(Op.NE, self[0], other))
-            IComparisons.append(Ins)
-            return True
-        elif len(self) == 1 and len(other) == 1:
-            Comparisons.append(Instr(Op.NE, self, other))
-            IComparisons.append(Ins)
-            return super().__ne__(other)
-        else:
-            if not self[0].__ne(other[0]): return False
-            return self[1:].__ne(other[1:])
+        return super().__ne__(other)
 
     def __contains__(self, other):
-        global Ins
-        Ins += 1
+        self.comparisons.append(Instr(Op.CONTAINS, self, other))
         return self.__contains(other)
 
     def __contains(self, other):
@@ -727,8 +661,7 @@ class tstr(str):
 
     # returns int
     def find(self, sub, start=None, end=None):
-        global Ins
-        Ins += 1
+        self.comparisons.append(Instr(Op.FIND, self, (sub, start, end)))
         return self.__find(sub, start, end)
 
     def __find(self, sub, start=None, end=None):
@@ -825,7 +758,7 @@ if __name__ in ['__main__']:
     new[5] == 'A'
     my_str[0] == 'h'
     my_str[0] == 'a'
-    for i in Comparisons:
+    for i in my_str.comparisons:
         print(i)
-    for i in Comparisons:
+    for i in my_str.comparisons:
         print(i.op_A._taint, i)
