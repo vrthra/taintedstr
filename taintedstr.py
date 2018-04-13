@@ -11,6 +11,8 @@ class Op(enum.Enum):
     IN = enum.auto()
     CONTAINS = enum.auto()
     FIND = enum.auto()
+    SPLIT = enum.auto()
+    RSPLIT = enum.auto()
     NOT_IN = enum.auto()
     IS = enum.auto()
     IS_NOT = enum.auto()
@@ -30,7 +32,7 @@ class Instr:
         elif self.op == Op.NE:
             return 'ne'
         else:
-            return '?'
+            return self.op.name
 
     def opS(self):
         if not self.opA.has_taint() and type(self.opB) is tstr:
@@ -46,7 +48,7 @@ class Instr:
 
 
     def __repr__(self):
-        return "%s,%s,%s" % (self.o(), repr(self.opA), repr(self.opB))
+        return "%s,%s,%s" % (self.op, repr(self.opA), repr(self.opB))
 
     def __str__(self):
         if self.op == Op.EQ:
@@ -70,7 +72,7 @@ class Instr:
             else:
                 return "%s not in %s" %  (repr(self.opA), repr(self.opB))
         else:
-            assert False
+            return str((self.op, repr(self.opA), repr(self.opB)))
 
 class tstr_iterator():
     def __init__(self, tstr):
@@ -113,18 +115,6 @@ class tstr(str):
 
     def has_taint(self):
         return any(True for i in self._taint if i >= 0)
-
-    def in_(self, s):
-        self.comparisons.append(Instr(Op.IN, self, s))
-        return self.__in_(s)
-
-    def __in_(self, s):
-        # c in '0123456789'
-        # to
-        # c.in_('0123456789')
-        # ensure that all characters are compared
-        result = [self.__eq(c) for i,c in substrings(s, len(self))]
-        return any(result)
 
     def __repr__(self):
         return str.__repr__(self) # + ':' + str((self._idx, self._unmapped_till))
@@ -206,6 +196,27 @@ class tstr(str):
         """
         return self._taint[idx] != -1
 
+    def in_(self, s):
+        """
+        >>> abc = tstr('78')
+        >>> abc.get_mapped_char_idx(0)
+        0
+        >>> my_str = '0123456789'
+        >>> abc.in_(my_str)
+        True
+        >>> abc.comparisons
+        [in_,'78','0123456789']
+        """
+
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, s))
+        return self.__in_(s)
+
+    def __in_(self, s):
+        # c in '0123456789'
+        # to
+        # c.in_('0123456789')
+        # ensure that all characters are compared
+        return (str(self) in s)
 
     def __getitem__(self, key):          # splicing ( [ ] )
         """
@@ -227,6 +238,7 @@ class tstr(str):
         >>> s.x(10)
         14
         """
+        # No comparisons
         res = super().__getitem__(key)
         if type(key) == slice:
             if res:
@@ -291,6 +303,7 @@ class tstr(str):
         >>> kl.x()
         18
         """
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, sep))
         splitted = super().rsplit(sep, maxsplit)
         if not sep: return self._split_space(splitted)
 
@@ -327,10 +340,9 @@ class tstr(str):
         >>> kl.x()
         18
         """
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, sep))
         splitted = super().split(sep, maxsplit)
         if not sep: return self._split_space(splitted)
-
-        self.comparisons.append(Instr(Op.IN, self, sep))
 
         result_list = []
         last_idx = 0
@@ -346,7 +358,6 @@ class tstr(str):
         return result_list
 
     def _split_space(self, splitted):
-        self.comparisons.append(Instr(Op.IN, self, " "))
         result_list = []
         last_idx = 0
         first_idx = 0
@@ -600,21 +611,21 @@ class tstr(str):
         return res
 
     def __eq__(self, other):
-        self.comparisons.append(Instr(Op.EQ, self, other))
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, other))
         return self.__eq(other)
 
     def __eq(self, other):
         return super().__eq__(other)
 
     def __ne__(self, other):
-        self.comparisons.append(Instr(Op.NE, self, other))
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, other))
         return self.__ne(other)
 
     def __ne(self, other):
         return super().__ne__(other)
 
     def __contains__(self, other):
-        self.comparisons.append(Instr(Op.CONTAINS, self, other))
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, other))
         return self.__contains(other)
 
     def __contains(self, other):
@@ -661,7 +672,7 @@ class tstr(str):
 
     # returns int
     def find(self, sub, start=None, end=None):
-        self.comparisons.append(Instr(Op.FIND, self, (sub, start, end)))
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, (sub, start, end)))
         return self.__find(sub, start, end)
 
     def __find(self, sub, start=None, end=None):
