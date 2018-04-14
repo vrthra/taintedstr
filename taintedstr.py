@@ -728,7 +728,7 @@ class tstr(str):
 
         result = next((i for i,c in substrings(substr, len(sub)) if c.__eq(sub)), None)
         if not result: return -1
-        return result
+        return result + start
 
     # returns int
     def index(self, sub, start=None, end=None):
