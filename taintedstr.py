@@ -24,9 +24,14 @@ class Instr:
     def __init__(self,o, a, b, r):
         self.opA = a
         self.opB = b
-        self.op = id(o)
-        self.op_name = o
+        if isinstance(o, str):
+            self.op = id(o)
+            self.op_name = o
+        else:
+            self.op = o
+            self.op_name = o.name
         self.r = r
+        self._expanded = []
 
     def o(self):
         if self.op == Op.EQ:
@@ -35,6 +40,36 @@ class Instr:
             return 'ne'
         else:
             return self.op.name
+
+    def expand_eq(self, opA, opB):
+        if len(opA) == 0 and len(opB) == 0:
+            self._expanded.append(Instr(Op.EQ, opA, opB, True))
+            return True
+        elif  len(opA) == 0:
+            self._expanded.append(Instr(Op.EQ, opA, opB[0], False))
+            return False
+        elif len(opB) == 0:
+            self._expanded.append(Instr(Op.EQ, opA[0], opB, False))
+            return False
+        elif len(opA) == 1 and len(opB) == 1:
+            v = (str(opA) == str(opB)) # dont add to compare taints
+            self._expanded.append(Instr(Op.EQ, opA, opB, v))
+            return v
+        else:
+            if not self.expand_eq(opA[0], opB[0]): return False
+            return self.expand_eq(opA[1:], opB[1:])
+
+    def expand(self):
+        if self._expanded: return self._expanded
+        # expand multy char string comparisons
+        if self.op == id('__eq__'):
+            self.expand_eq(self.opA, self.opB)
+            return self._expanded
+        elif self.op == id('__ne__'):
+            self.expand_eq(self.opA, self.opB)
+            return self._expanded
+        else:
+            assert False
 
     def opS(self):
         if not self.opA.has_taint() and type(self.opB) is tstr:
@@ -50,7 +85,7 @@ class Instr:
 
 
     def __repr__(self):
-        return "%s,%s,%s" % (self.op, repr(self.opA), repr(self.opB))
+        return "%s,%s,%s" % (self.op_name, repr(self.opA), repr(self.opB))
 
     def __str__(self):
         if self.op == Op.EQ:
@@ -74,7 +109,7 @@ class Instr:
             else:
                 return "%s not in %s" %  (repr(self.opA), repr(self.opB))
         else:
-            return str((self.op, repr(self.opA), repr(self.opB)))
+            return str((self.op_name, repr(self.opA), repr(self.opB)))
 
 class tstr_iterator():
     def __init__(self, tstr):
