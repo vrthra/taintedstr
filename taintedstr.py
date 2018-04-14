@@ -68,6 +68,14 @@ class Instr:
         elif self.op == id('__ne__'):
             self.expand_eq(self.opA, self.opB)
             return self._expanded
+        elif self.op == id('in_'):
+            result = [self.expand_eq(self.opA, c) for i,c in substrings(self.opB, len(self.opA))]
+            return self._expanded
+        elif self.op == id('find'):
+            #sub, start, end = self.opB
+            #substr = self.opA[start:end]
+            #result = next((i for i,c in substrings(substr, len(sub)) if c.__eq(sub)), None)
+            return self._expanded
         else:
             assert False
 
@@ -144,7 +152,7 @@ class tstr(str):
             self._taint = taint
         else:
             self._taint = list(range(0, len(self)))
-        self.comparisons = parent.comparisons if parent else []
+        self.comparisons = parent.comparisons if parent is not None else []
 
     def untaint(self):
         self._taint =  [-1] * len(self)
@@ -729,7 +737,7 @@ class tstr(str):
 
         result = next((i for i,c in substrings(substr, len(sub)) if c.__eq(sub)), None)
         if not result: return -1
-        return result
+        return result + start
 
     # returns int
     def index(self, sub, start=None, end=None):
