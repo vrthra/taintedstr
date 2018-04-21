@@ -95,6 +95,12 @@ class Instr:
     def __repr__(self):
         return "%s,%s,%s" % (self.op_name, repr(self.opA), repr(self.opB))
 
+    def __hash__(self):
+        return hash(repr(self))
+
+    def __eq__(self, other):
+        return repr(self) == repr(other)
+
     def __str__(self):
         if self.op == Op.EQ:
             if str(self.opA) == str(self.opB):
