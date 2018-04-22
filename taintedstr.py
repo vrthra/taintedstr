@@ -31,7 +31,6 @@ class Instr:
 
     def __getstate__(self):
         state = self.__dict__.copy()
-        if '_expanded' in state: del state['_expanded']
         return state
 
     def __init__(self,o, a, b, r):
