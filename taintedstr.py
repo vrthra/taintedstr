@@ -48,6 +48,12 @@ class Instr:
         else:
             return self.op.name
 
+    def expand_find(self, opA, opB):
+        sub, start, end = opB
+        substr = opA[start:end]
+        result = next((i for i,c in substrings(substr, len(sub)) if self.expand_eq(c, sub)), None)
+        return result
+
     def expand_eq(self, opA, opB):
         if len(opA) == 0 and len(opB) == 0:
             self._expanded.append(Instr(Op.EQ, opA, opB, True))
@@ -79,9 +85,7 @@ class Instr:
             result = [self.expand_eq(self.opA, c) for i,c in substrings(self.opB, len(self.opA))]
             return self._expanded
         elif self.op == h_id('find'):
-            #sub, start, end = self.opB
-            #substr = self.opA[start:end]
-            #result = next((i for i,c in substrings(substr, len(sub)) if c.__eq(sub)), None)
+            self.expand_find(self.opA, self.opB)
             return self._expanded
         else:
             assert False
