@@ -28,6 +28,10 @@ class TaintException(Exception):
     pass
 
 class Instr:
+
+    def __getstate__(self):
+        return {'opA':self.opA, 'opB': self.opB, 'op':self.op, 'op_name':self.op_name, 'r':self.r}
+
     def __init__(self,o, a, b, r):
         self.opA = a
         self.opB = b
@@ -154,6 +158,10 @@ def substrings(s, l):
         yield (i, s[i:i+l])
 
 class tstr(str):
+
+    def __getstate__(self):
+        return {'_taint':self._taint}
+
     def __new__(cls, value, *args, **kw):
         return super(tstr, cls).__new__(cls, value)
 
