@@ -1,5 +1,13 @@
 import inspect
 import enum
+import hashlib
+
+OpId = {}
+global OpId
+def h_id(s):
+    global OpId
+    if s not in OpId: OpId[s] = int(hashlib.sha1(s).hexdigest(), 16) % (10 ** 8)
+    return OpId[s]
 
 class Op(enum.Enum):
     LT = 0
@@ -25,7 +33,7 @@ class Instr:
         self.opA = a
         self.opB = b
         if isinstance(o, str):
-            self.op = id(o)
+            self.op = h_id(o)
             self.op_name = o
         else:
             self.op = o
@@ -62,16 +70,16 @@ class Instr:
     def expand(self):
         if self._expanded: return self._expanded
         # expand multy char string comparisons
-        if self.op == id('__eq__'):
+        if self.op == h_id('__eq__'):
             self.expand_eq(self.opA, self.opB)
             return self._expanded
-        elif self.op == id('__ne__'):
+        elif self.op == h_id('__ne__'):
             self.expand_eq(self.opA, self.opB)
             return self._expanded
-        elif self.op == id('in_'):
+        elif self.op == h_id('in_'):
             result = [self.expand_eq(self.opA, c) for i,c in substrings(self.opB, len(self.opA))]
             return self._expanded
-        elif self.op == id('find'):
+        elif self.op == h_id('find'):
             #sub, start, end = self.opB
             #substr = self.opA[start:end]
             #result = next((i for i,c in substrings(substr, len(sub)) if c.__eq(sub)), None)
