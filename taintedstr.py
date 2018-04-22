@@ -5,7 +5,7 @@ import hashlib
 OpId = {}
 def h_id(s):
     global OpId
-    if s not in OpId: OpId[s] = int(hashlib.sha1(s).hexdigest(), 16) % (10 ** 8)
+    if s not in OpId: OpId[s] = int(hashlib.sha256(s.encode('utf-8')).hexdigest(), 16) % 10**8
     return OpId[s]
 
 class Op(enum.Enum):
