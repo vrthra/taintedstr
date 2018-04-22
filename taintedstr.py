@@ -163,8 +163,7 @@ class tstr(str):
 
     def __getstate__(self):
         state = self.__dict__.copy()
-        if 'comparisons' in state: del state['comparisons']
-        if 'parent' in state: del state['parent']
+        if 'comparisons' in state: state['comparisons'] = []
         return state
 
     def __new__(cls, value, *args, **kw):
