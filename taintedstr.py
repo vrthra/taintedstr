@@ -31,7 +31,7 @@ class Instr:
 
     def __getstate__(self):
         state = self.__dict__.copy()
-        del state['_expanded']
+        if '_expanded' in state: del state['_expanded']
         return state
 
     def __init__(self,o, a, b, r):
@@ -163,8 +163,8 @@ class tstr(str):
 
     def __getstate__(self):
         state = self.__dict__.copy()
-        del state['comparisons']
-        del state['parent']
+        if 'comparisons' in state: del state['comparisons']
+        if 'parent' in state: del state['parent']
         return state
 
     def __new__(cls, value, *args, **kw):
