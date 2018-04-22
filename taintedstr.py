@@ -30,7 +30,9 @@ class TaintException(Exception):
 class Instr:
 
     def __getstate__(self):
-        return {'opA':self.opA, 'opB': self.opB, 'op':self.op, 'op_name':self.op_name, 'r':self.r}
+        state = self.__dict__.copy()
+        del state['_expanded']
+        return state
 
     def __init__(self,o, a, b, r):
         self.opA = a
@@ -160,7 +162,10 @@ def substrings(s, l):
 class tstr(str):
 
     def __getstate__(self):
-        return {'_taint':self._taint}
+        state = self.__dict__.copy()
+        del state['comparisons']
+        del state['parent']
+        return state
 
     def __new__(cls, value, *args, **kw):
         return super(tstr, cls).__new__(cls, value)
