@@ -3,7 +3,6 @@ import enum
 import hashlib
 
 OpId = {}
-global OpId
 def h_id(s):
     global OpId
     if s not in OpId: OpId[s] = int(hashlib.sha1(s).hexdigest(), 16) % (10 ** 8)
