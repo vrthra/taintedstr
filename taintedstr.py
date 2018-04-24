@@ -1,6 +1,7 @@
 import inspect
 import enum
 import hashlib
+import os
 
 OpId = {}
 def h_id(s):
@@ -16,6 +17,93 @@ class Op(enum.Enum):
 
 class TaintException(Exception):
     pass
+
+class CExpander:
+    def __init__(self, op, op_name, opA, opB):
+        self.op, self.op_name, self.opA, self.opB = op, op_name, opA, opB
+        self._expanded = []
+
+    def _find(self, opA, opB):
+        sub, start, end = opB
+        substr = opA[start:end]
+        result = next((i for i,c in substrings(substr, len(sub)) if self._eq(c, sub)), None)
+        return result
+
+    def _eq(self, opA, opB):
+        if len(opA) == 0 and len(opB) == 0:
+            self._expanded.append(Instr(Op.EQ, opA, opB, True))
+            return True
+        elif  len(opA) == 0:
+            self._expanded.append(Instr(Op.EQ, opA, opB[0], False))
+            return False
+        elif len(opB) == 0:
+            self._expanded.append(Instr(Op.EQ, opA[0], opB, False))
+            return False
+        elif len(opA) == 1 and len(opB) == 1:
+            v = (str(opA) == str(opB)) # dont add to compare taints
+            self._expanded.append(Instr(Op.EQ, opA, opB, v))
+            return v
+        else:
+            if not self._eq(opA[0], opB[0]): return False
+            return self._eq(opA[1:], opB[1:])
+
+    def _lstrip(self, opA, opB):
+        last = len(opA)
+        for i in range(0, last):
+            ic = opA[i]
+            found = False
+            for jc in list(str(opB)):
+                if self._eq(ic, jc):
+                    found = True
+                    break
+            if not found:
+                return opA[i:]
+        return opA
+
+    def _rstrip(self, opA, opB):
+        last_idx = len(opA)-1
+        for i in range(last_idx, -1, -1):
+            ic = opA[i]
+            found = False
+            for jc in list(str(opB)):
+                if self._eq(ic, jc):
+                    found = True
+                    break
+            if not found:
+                return opA[0:i]
+        return opA
+
+    def _strip(self, opA, opB):
+        return self._rstrip(self._lstrip(opA, opB), opB)
+
+    def expand(self):
+        if self._expanded: return self._expanded
+        # expand multy char string comparisons
+        if self.op == h_id('__eq__'):
+            self._eq(self.opA, self.opB)
+            return self._expanded
+        elif self.op == h_id('__ne__'):
+            self._eq(self.opA, self.opB)
+            return self._expanded
+        elif self.op == h_id('in_'):
+            result = [self._eq(self.opA, c) for i,c in substrings(self.opB, len(self.opA))]
+            return self._expanded
+        elif self.op == h_id('find'):
+            self._find(self.opA, self.opB)
+            return self._expanded
+        elif self.op == h_id('rstrip'):
+            self._rstrip(self.opA, self.opB)
+            return self._expanded
+        elif self.op == h_id('lstrip'):
+            self._lstrip(self.opA, self.opB)
+            return self._expanded
+        elif self.op == h_id('strip'):
+            self._strip(self.opA, self.opB)
+            return self._expanded
+        else:
+            import sys
+            print("Not Implemented", self.op_name, file=sys.stderr, flush=True)
+            raise NotImplementedError
 
 class Instr:
 
@@ -33,49 +121,10 @@ class Instr:
             self.op = o
             self.op_name = o.name
         self.r = r
-        self._expanded = []
-
-    def expand_find(self, opA, opB):
-        sub, start, end = opB
-        substr = opA[start:end]
-        result = next((i for i,c in substrings(substr, len(sub)) if self.expand_eq(c, sub)), None)
-        return result
-
-    def expand_eq(self, opA, opB):
-        if len(opA) == 0 and len(opB) == 0:
-            self._expanded.append(Instr(Op.EQ, opA, opB, True))
-            return True
-        elif  len(opA) == 0:
-            self._expanded.append(Instr(Op.EQ, opA, opB[0], False))
-            return False
-        elif len(opB) == 0:
-            self._expanded.append(Instr(Op.EQ, opA[0], opB, False))
-            return False
-        elif len(opA) == 1 and len(opB) == 1:
-            v = (str(opA) == str(opB)) # dont add to compare taints
-            self._expanded.append(Instr(Op.EQ, opA, opB, v))
-            return v
-        else:
-            if not self.expand_eq(opA[0], opB[0]): return False
-            return self.expand_eq(opA[1:], opB[1:])
+        self._value = CExpander(self.op, self.op_name, a, b)
 
     def expand(self):
-        if self._expanded: return self._expanded
-        # expand multy char string comparisons
-        if self.op == h_id('__eq__'):
-            self.expand_eq(self.opA, self.opB)
-            return self._expanded
-        elif self.op == h_id('__ne__'):
-            self.expand_eq(self.opA, self.opB)
-            return self._expanded
-        elif self.op == h_id('in_'):
-            result = [self.expand_eq(self.opA, c) for i,c in substrings(self.opB, len(self.opA))]
-            return self._expanded
-        elif self.op == h_id('find'):
-            self.expand_find(self.opA, self.opB)
-            return self._expanded
-        else:
-            assert False
+        return self._value.expand()
 
     def opS(self):
         if not self.opA.has_taint() and type(self.opB) is tstr:
@@ -100,28 +149,7 @@ class Instr:
         return repr(self) == repr(other)
 
     def __str__(self):
-        if self.op == Op.EQ:
-            if str(self.opA) == str(self.opB):
-                return "%s = %s" % (repr(self.opA), repr(self.opB))
-            else:
-                return "%s != %s" %  (repr(self.opA), repr(self.opB))
-        elif self.op == Op.NE:
-            if str(self.opA) == str(self.opB):
-                return "%s = %s" %  (repr(self.opA), repr(self.opB))
-            else:
-                return "%s != %s" %  (repr(self.opA), repr(self.opB))
-        elif self.op == Op.IN:
-            if str(self.opA) in str(self.opB):
-                return "%s in %s" % (repr(self.opA), repr(self.opB))
-            else:
-                return "%s not in %s" %  (repr(self.opA), repr(self.opB))
-        elif self.op == Op.NOT_IN:
-            if str(self.opA) in str(self.opB):
-                return "%s in %s" % (repr(self.opA), repr(self.opB))
-            else:
-                return "%s not in %s" %  (repr(self.opA), repr(self.opB))
-        else:
-            return str((self.op_name, repr(self.opA), repr(self.opB)))
+        return str((self.op_name, repr(self.opA), repr(self.opB)))
 
 class tstr_iterator():
     def __init__(self, tstr):
@@ -493,21 +521,29 @@ class tstr(str):
             return tstr(str.__add__(other, self), ([-1 for i in other] + self._taint), self)
 
     def format(self, *args, **kwargs): #formatting (%) self is format string
-        assert False
+        raise NotImplementedError
         return super().format(*args, **kwargs)
 
     def format_map(self, mapping): #formatting (%) self is format string
-        assert False
+        raise NotImplementedError
         return super().format_map(mapping)
 
 
     def __mod__(self, other): #formatting (%) self is format string
-        assert False
-        return super().__mod__(other)
+        assert type(other) is str
+        v = super().__mod__(other)
+        prefix = os.path.commonprefix(str(other), str(self))
+        rest = len(v) - len(other) - len(prefix)
+        r = tstr(v, self._taint[0:len(prefix)] +  [-1] * len(other) + self._taint[len(prefix)+2:])
+        return r
 
     def __rmod__(self, other): #formatting (%) other is format string
-        assert False
-        return super().__rmod__(other)
+        assert type(other) is str
+        v = super().__rmod__(other)
+        prefix = os.path.commonprefix([str(other), str(self)])
+        rest = len(v) - len(self) - len(prefix)
+        r = tstr(v, [-1] * len(prefix) + self._taint +  [-1] * rest)
+        return r
 
     def strip(self, cl=None):
         """
@@ -524,11 +560,16 @@ class tstr(str):
         >>> v[2].x()
         4
         """
-        r = self.lstrip(cl).rstrip(cl)
+        r = self._lstrip(cl)._rstrip(cl)
         self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, cl, r))
-        return self.lstrip(cl).rstrip(cl)
+        return r
 
     def lstrip(self, cl=None):
+        r = self._lstrip(cl)
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, cl, r))
+        return r
+
+    def _lstrip(self, cl=None):
         """
         >>> my_str1 = tstr("  abc  ")
         >>> my_str1[2]
@@ -544,10 +585,14 @@ class tstr(str):
         res = super().lstrip(cl)
         i = self.find(res)
         r = self[i:]
-        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, cl, r))
         return r
 
     def rstrip(self, cl=None):
+        r = self._rstrip(cl)
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, cl, r))
+        return r
+
+    def _rstrip(self, cl=None):
         """
         >>> my_str1 = tstr("  abc  ")
         >>> my_str1[2]
@@ -562,7 +607,6 @@ class tstr(str):
         """
         res = super().rstrip(cl)
         r = self[0:len(res)]
-        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, cl, r))
         return r
 
     def swapcase(self):
@@ -697,7 +741,7 @@ class tstr(str):
 
     def __format__(self, formatspec):
         res = super().__format__(formatspec)
-        assert False
+        raise NotImplementedError
         return res
 
     def __eq__(self, other):
