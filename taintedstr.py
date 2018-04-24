@@ -9,20 +9,10 @@ def h_id(s):
     return OpId[s]
 
 class Op(enum.Enum):
-    LT = 0
-    LE = enum.auto()
     EQ = enum.auto()
     NE = enum.auto()
-    GT = enum.auto()
-    GE = enum.auto()
     IN = enum.auto()
-    CONTAINS = enum.auto()
-    FIND = enum.auto()
-    SPLIT = enum.auto()
-    RSPLIT = enum.auto()
     NOT_IN = enum.auto()
-    IS = enum.auto()
-    IS_NOT = enum.auto()
 
 class TaintException(Exception):
     pass
@@ -44,14 +34,6 @@ class Instr:
             self.op_name = o.name
         self.r = r
         self._expanded = []
-
-    def o(self):
-        if self.op == Op.EQ:
-            return 'eq'
-        elif self.op == Op.NE:
-            return 'ne'
-        else:
-            return self.op.name
 
     def expand_find(self, opA, opB):
         sub, start, end = opB
@@ -169,6 +151,14 @@ class tstr(str):
         return super(tstr, cls).__new__(cls, value)
 
     def __init__(self, value, taint=None, parent=None):
+        """
+        >>> my_str = tstr('abcd')
+        >>> my_str._taint
+        [0, 1, 2, 3]
+        >>> my_str = tstr('abcd', taint=[0,0,1,1])
+        >>> my_str._taint
+        [0, 0, 1, 1]
+        """
         # tain map contains non-overlapping portions that are mapped to the
         # original string
         self.parent = parent
@@ -176,21 +166,39 @@ class tstr(str):
         if taint:
             # assert that the provided tmap carries only
             # as many entries as len.
-            assert len(taint) == len(self)
+            assert len(taint) == l
             self._taint = taint
         else:
-            self._taint = list(range(0, len(self)))
+            self._taint = list(range(0, l))
         self.comparisons = parent.comparisons if parent is not None else []
 
     def untaint(self):
+        """
+        >>> my_str = tstr('abcd')
+        >>> my_str._taint
+        [0, 1, 2, 3]
+        >>> my_str.untaint()
+        'abcd'
+        >>> my_str._taint
+        [-1, -1, -1, -1]
+        """
         self._taint =  [-1] * len(self)
         return self
 
     def has_taint(self):
+        """
+        >>> my_str = tstr('abcd')
+        >>> my_str.has_taint()
+        True
+        >>> my_str.untaint()
+        'abcd'
+        >>> my_str.has_taint()
+        False
+        """
         return any(True for i in self._taint if i >= 0)
 
     def __repr__(self):
-        return str.__repr__(self) # + ':' + str((self._idx, self._unmapped_till))
+        return str.__repr__(self)
 
     def __str__(self):
         return str.__str__(self)
@@ -241,10 +249,7 @@ class tstr(str):
         >>> my_str.get_first_mapped_char()
         4
         """
-        for i in self._taint:
-            if i >= 0:
-                return i
-        return -1
+        return next((i for i in self._taint if i >= 0), -1)
 
     # tpos is the index in the input string that we are
     # looking to see if contained in this string.
@@ -311,6 +316,8 @@ class tstr(str):
         11
         >>> s.x(10)
         14
+        >>> my_str.comparisons
+        []
         """
         # No comparisons
         res = super().__getitem__(key)
@@ -358,7 +365,6 @@ class tstr(str):
             assert False
 
     def rsplit(self, sep = None, maxsplit = -1):
-        # TODO: Need Comparisons
         """
         >>> my_str = tstr('ab cdef ghij kl', taint=list(range(0,15)))
         >>> ab, cdef, ghij, kl = my_str.rsplit(sep=' ')
@@ -398,7 +404,6 @@ class tstr(str):
         return r
 
     def split(self, sep = None, maxsplit = -1):
-        # TODO: Need Comparisons
         """
         >>> my_str = tstr('ab cdef ghij kl', taint=list(range(0,15)))
         >>> ab, cdef, ghij, kl = my_str.split(sep=' ')
@@ -501,10 +506,10 @@ class tstr(str):
         return super().__mod__(other)
 
     def __rmod__(self, other): #formatting (%) other is format string
+        assert False
         return super().__rmod__(other)
 
     def strip(self, cl=None):
-        # TODO: Need Comparisons
         """
         >>> my_str1 = tstr("  abc  ")
         >>> my_str1[2]
@@ -519,10 +524,11 @@ class tstr(str):
         >>> v[2].x()
         4
         """
+        r = self.lstrip(cl).rstrip(cl)
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, cl, r))
         return self.lstrip(cl).rstrip(cl)
 
     def lstrip(self, cl=None):
-        # TODO: Need Comparisons
         """
         >>> my_str1 = tstr("  abc  ")
         >>> my_str1[2]
@@ -537,10 +543,11 @@ class tstr(str):
         """
         res = super().lstrip(cl)
         i = self.find(res)
-        return self[i:]
+        r = self[i:]
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, cl, r))
+        return r
 
     def rstrip(self, cl=None):
-        # TODO: Need Comparisons
         """
         >>> my_str1 = tstr("  abc  ")
         >>> my_str1[2]
@@ -554,10 +561,11 @@ class tstr(str):
         2
         """
         res = super().rstrip(cl)
-        return self[0:len(res)]
+        r = self[0:len(res)]
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, cl, r))
+        return r
 
     def swapcase(self):
-        # TODO: Need Comparisons
         """
         >>> my_str1 = tstr("abc")
         >>> v = my_str1.swapcase()
@@ -621,7 +629,6 @@ class tstr(str):
         return tstr_iterator(self)
 
     def expandtabs(self, n=8):
-        # TODO: Need Comparisons
         """
         >>> my_str = tstr("ab\\tcd")
         >>> len(my_str)
@@ -640,17 +647,21 @@ class tstr(str):
             if i < len(parts)-1:
                 l = len(all_parts) % n
                 all_parts.extend([p._taint[-1]]*l)
-        return tstr(res, all_parts, self)
+        r = tstr(res, all_parts, self)
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, n, r))
+        return r
 
     def partition(self, sep):
-        # TODO: Need Comparisons
         partA, sep, partB = super().partition(sep)
-        return (tstr(partA, self._taint[0:len(partA)], self), tstr(sep, self._taint[len(partA): len(partA) + len(sep)], self), tstr(partB, self._taint[len(partA) + len(sep):], self))
+        r = (tstr(partA, self._taint[0:len(partA)], self), tstr(sep, self._taint[len(partA): len(partA) + len(sep)], self), tstr(partB, self._taint[len(partA) + len(sep):], self))
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, sep, r))
+        return r
 
     def rpartition(self, sep):
-        # TODO: Need Comparisons
         partA, sep, partB = super().rpartition(sep)
-        return (tstr(partA, self._taint[0:len(partA)], self), tstr(sep, self._taint[len(partA): len(partA) + len(sep)], self), tstr(partB, self._taint[len(partA) + len(sep):], self))
+        r = (tstr(partA, self._taint[0:len(partA)], self), tstr(sep, self._taint[len(partA): len(partA) + len(sep)], self), tstr(partB, self._taint[len(partA) + len(sep):], self))
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, sep, r))
+        return r
 
     def ljust(self, width, fillchar=' '):
         res = super().ljust(width, fillchar)
@@ -716,7 +727,6 @@ class tstr(str):
         return False
 
     def replace(self, a, b, n=None):
-        # TODO: Need Comparisons
         """
         >>> my_str = tstr("aa cde aa")
         >>> res = my_str.replace('aa', 'bb')
@@ -738,19 +748,24 @@ class tstr(str):
             partA, partB = old_taint[0:idx], old_taint[last:]
             old_taint = partA + b_taint + partB
             i += 1
-        return tstr(mystr, old_taint, self)
+        r = tstr(mystr, old_taint, self)
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, (a, b, n), r))
+        return r
 
     def count(self, sub, start=0, end=None):
-        # TODO: Need Comparisons
-        return super().count(start, end)
+        r = super().count(start, end)
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, (sub, start, end), r))
+        return r
 
     def startswith(self, prefix, start=0, end=None):
-        # TODO: Need Comparisons
-        return super().startswith(prefix ,start, end)
+        r = super().startswith(prefix ,start, end)
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, (prefix, start, end), r))
+        return r
 
     def endswith(self, suffix, start=0, end=None):
-        # TODO: Need Comparisons
-        return super().endswith(suffix ,start, end)
+        r = super().endswith(suffix ,start, end)
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, (suffix, start, end), r))
+        return r
 
     # returns int
     def find(self, sub, start=None, end=None):
@@ -769,31 +784,66 @@ class tstr(str):
 
     # returns int
     def index(self, sub, start=None, end=None):
-        # TODO: Need Comparisons
-        return super().index(sub, start, end)
+        r = super().index(sub, start, end)
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, (sub, start, end), r))
+        return r
 
     # returns int
     def rfind(self, sub, start=None, end=None):
-        # TODO: Need Comparisons
-        return super().rfind(sub, start, end)
+        r = super().rfind(sub, start, end)
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, (sub, start, end), r))
+        return r
 
     # returns int
     def rindex(self, sub, start=None, end=None):
-        # TODO: Need Comparisons
-        return super().rindex(sub, start, end)
+        r = super().rindex(sub, start, end)
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, (sub, start, end), r))
+        return r
 
-    # TODO: Need Comparisons
-    def isalnum(self): return super().isalnum()
-    def isalpha(self): return super().isalpha()
-    def isdigit(self): return super().isdigit()
-    def islower(self): return super().islower()
-    def isupper(self): return super().isupper()
-    def isspace(self): return super().isspace()
-    def istitle(self): return super().istitle()
-    def isdecimal(self): return super().isdecimal()
-    def isidentifier(self): return super().isidentifier()
-    def isnumeric(self): return super().isnumeric()
-    def isprintable(self): return super().isprintable()
+    def isalnum(self):
+        r = super().isalnum()
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, None, r))
+        return r
+    def isalpha(self):
+        r = super().isalpha()
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, None, r))
+        return r
+    def isdigit(self):
+        r = super().isdigit()
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, None, r))
+        return r
+    def islower(self):
+        r = super().islower()
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, None, r))
+        return r
+    def isupper(self):
+        r = super().isupper()
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, None, r))
+        return r
+    def isspace(self):
+        r = super().isspace()
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, None, r))
+        return r
+    def istitle(self):
+        r = super().istitle()
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, None, r))
+        return r
+    def isdecimal(self):
+        r = super().isdecimal()
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, None, r))
+        return r
+    def isidentifier(self):
+        r = super().isidentifier()
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, None, r))
+        return r
+    def isnumeric(self):
+        r = super().isnumeric()
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, None, r))
+        return r
+    def isprintable(self):
+        r = super().isprintable()
+        self.comparisons.append(Instr(inspect.currentframe().f_code.co_name, self, None, r))
+        return r
 
 def make_str_wrapper(fun):
     def proxy(*args, **kwargs):
